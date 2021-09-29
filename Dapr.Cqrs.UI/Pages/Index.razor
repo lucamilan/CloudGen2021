@@ -1,0 +1,426 @@
+﻿@page "/"
+@page "/{TimerType}"
+@implements IAsyncDisposable
+@inject NavigationManager _navManager
+@inject IAppReadClient _appReadClient
+@inject IAppWriteClient _appWriteClient
+@inject HubConnectionFactory _hubConnectionFactory
+
+<Banner Message="@ViewModel.ErrorMessage" />
+
+<div class="container">
+
+    <div class="text-center">
+        <h1> Welcome Data Processing Flow </h1>
+
+    </div>
+
+    <div class="row align-items-center">
+        <div class="col-sm-6 text-center">
+            <h4> Data Ingestion </h4>
+            <h6> Transactional outbox & Idempotent Receiver </h6>
+        </div>
+        <div class="col-sm-6 text-center">
+            <h4> Transformations </h4>
+            <h6> Each storage technology achieve a specific business case </h6>
+        </div>
+
+    </div>
+
+    <div class="row align-items-center">
+        <div class="col-sm-6">
+
+            <div class="row text-center">
+                <div class="col-sm-2 align-middle">
+                </div>
+                <div class="col-sm-6">
+
+                    <div class="row">
+                        <div class="col-sm-12 align-middle">
+                            <img src="img/sql.png" class="img-thumbnail align-middle" width="160">
+                        </div>
+
+                        <div class="col-sm-12 text-center"> <span class="timer count-title count-number">
+                                @ViewModel.DataInsertedCounter </span>
+                            <div>
+                                <span class="small"> rows in <b>SQL Server</b> </span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+                <div class="col-sm-2 align-middle">
+                    <img src="img/arrow3.png" width="100">
+                </div>
+                <div class="col-sm-2 align-middle">
+                </div>
+            </div>
+
+        </div>
+        <div class="col-sm-6">
+            <div class="row align-items-center">
+                <div class="col-sm-2">
+                    <div class="">
+                        <img src="img/azure-blob.png" class="img-thumbnail" width="90">
+                    </div>
+                </div>
+                <div class="col-sm-2 align-middle"><img src="img/arrow2.png" width="70"></div>
+
+                <div class="col-sm-8 align-middle"><span class="timer count-title count-number">
+                        @ViewModel.DataRawProcessingCounter </span>
+                    <div>
+                        <span class="small">items for <b>Raw Query</b></span>
+
+                    </div>
+                </div>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-sm-2 align-middle"><img src="img/azure-table.png" class="img-thumbnail" width="90"></div>
+                <div class="col-sm-2 align-middle"><img src="img/arrow2.png" width="70"></div>
+
+                <div class="col-sm-8 align-middle"><span class="timer count-title count-number">
+                        @ViewModel.DataTimeProcessingCounter </span>
+                    <div>
+                        <span class="small"> entities for <b>Time Query</b> </span>
+                    </div>
+                </div>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-sm-2 align-middle"><img src="img/azure-blob.png" class="img-thumbnail" width="90"></div>
+                <div class="col-sm-2 align-middle"><img src="img/arrow2.png" width="70"></div>
+
+                <div class="col-sm-8 align-middle"><span class="timer count-title count-number">
+                        @ViewModel.DataSearchProcessingCounter </span>
+                         <div>
+                    <span class="small"> items for <b>Search Query</b></span>
+
+                         </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    <br>
+
+    <div class="row text-center">
+        <div class="col-sm-12">
+            <div class="btn-group" role="group" aria-label="">
+                <a title="Seed with random data" class="btn btn-danger" @onclick="GenerateData">
+                    <i class="fas fa-check-double"></i> Emit Data
+                </a>
+
+                <a title="" role="group"
+                    class="@(( "timer-aggregates" == TimerType ? "btn btn-info" : "btn btn-danger"))"
+                    href="/timer-aggregates">
+                    <i class="fas fa-check-double"></i> Realtime Aggregates
+                </a>
+
+                <a title="" role="group"
+                    class="@(( "timer-populator" == TimerType ? "btn btn-info" : "btn btn-danger"))"
+                    href="/timer-populator">
+                    <i class="fas fa-check-double"></i> Auto Populate
+                </a>
+
+                <a title="" role="group" class="@(( "timer-all" == TimerType ? "btn btn-info" : "btn btn-danger"))"
+                    href="/timer-all">
+                    <i class="fas fa-check-double"></i> Start All
+                </a>
+
+                <a title="" role="group" class="@(( "timer-stop" == TimerType ? "btn btn-info" : "btn btn-danger"))"
+                    href="/timer-stop">
+                    <i class="fas fa-check-double"></i> Stop All
+                </a>
+
+                <a href="#" class="btn btn-secondary">Retries: @ViewModel.DataRetriedOutboxCounter</a>
+                <a href="#" class="btn btn-secondary">Bad: @ViewModel.DataRemovedOutboxCounter</a>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@if (ViewModel.Plants.Any())
+{
+    <br>
+    <div class="container">
+        <div class="text-center">
+            <h1> Realtime Dashboard with Aggregates </h1>
+            <p>
+                This panel shows realtime time aggregates projected by a materialized view from Azure Tables.
+                The main KPI are recalculated (by a dedicated aggregator services) at regular intervals <strong>(every 30
+                    secs.)</strong> from live data.
+            </p>
+        </div>
+    </div>
+
+    <div class="container grid-striped">
+
+        @* Plants *@
+        @foreach (var plant in ViewModel.Plants)
+        {
+            <div class="row align-items-left">
+                <div class="col-sm-12">
+
+                    <div class="row align-items-center font-weight-bold py-2">
+                        <div class="col-sm-1">@plant.Name</div>
+                        <div class="col-sm-1"></div>
+                        <div class="col-sm-5 text-center">Relative Humidity in %</div>
+                        <div class="col-sm-5 text-center">Temperature in C°</div>
+                    </div>
+
+                    @* Header *@
+
+                    <div class="row align-items-center">
+                        <div class="col-sm-2">Locations</div>
+                        <div class="col-sm-10">
+                            <div class="row align-items-center">
+                                <div class="col-sm-2 small"><small>Interval</small></div>
+                                <div class="col-sm-5">
+                                    <div class="row">
+                                        <div class="col-sm-2">Min</div>
+                                        <div class="col-sm-2">Max</div>
+                                        <div class="col-sm-2">Count</div>
+                                        <div class="col-sm-2">Avg</div>
+                                        <div class="col-sm-2">Std</div>
+                                        <div class="col-sm-2"></div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-5">
+                                    <div class="row">
+                                        <div class="col-sm-2">Min</div>
+                                        <div class="col-sm-2">Max</div>
+                                        <div class="col-sm-2">Count</div>
+                                        <div class="col-sm-2">Avg</div>
+                                        <div class="col-sm-2">Std</div>
+                                        <div class="col-sm-2"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @* Fine Header *@
+
+                    @* Locations *@
+                    @foreach (var location in plant.Locations)
+                    {
+                        <div class="row align-items-center">
+                            <div class="col-sm-2">@location.Name</div>
+
+                            <div class="col-sm-10">
+                                @* Interval *@
+                                @for (int i = 0; i < 4; i++)
+                                {
+                                    <div class="row align-items-center">
+                                        <div class="col-sm-2">@IntervalViewModel.AsLabel(i)</div>
+
+                                        @* By Tags *@
+                                        @foreach (var tag in location.Tags.OrderBy(_ => _.Id))
+                                        {
+                                            <div class="col-sm-5">
+                                                <div class="row">
+                                                    @foreach (var interval in tag.Intervals.Where(_ => _.Id == i.ToString()))
+                                                    {
+                                                        <div class="col-sm-2">@interval.Min </div>
+                                                        <div class="col-sm-2">@interval.Max </div>
+                                                        <div class="col-sm-2">@interval.Count </div>
+                                                        <div class="col-sm-2">@interval.Average </div>
+                                                        <div class="col-sm-2">@interval.StandardDeviation </div>
+                                                        <div class="col-sm-2"> </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+
+@code {
+    [Parameter]
+    public String TimerType { get; set; }
+    public DashboardViewModel ViewModel = new();
+    private HubConnection _hubConnection;
+    private Timer _realtimeAggregatesTimer;
+    private Timer _populatorTimer;
+    private async Task GenerateData()
+    {
+        await SendData();
+        StateHasChanged();
+    }
+
+    private async Task SendData()
+    {
+        var data = SensorDataBuilder.BuildNonRandom().ToArray();
+
+        foreach (var item in data)
+        {
+            try
+            {
+                await _appWriteClient.PostAsync(item);
+            }
+            catch (ApiException)
+            {
+                ViewModel.ErrorMessage = "Ci sono problemi nell'invio dei dati";
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine("Start OnInitializedAsync");
+
+        foreach (var key in Enum.GetValues<NotificationType>())
+        {
+            await AssignCounterToVariable(key);
+        }
+
+        _hubConnection = _hubConnectionFactory.Create();
+        _hubConnection.On<NotificationData>(HubNames.NotificationMethod, async data =>
+        {
+            await AssignCounterToVariable(data.Type, data.Message);
+        });
+
+        await _hubConnection.StartAsync();
+
+        _navManager.LocationChanged += LocationChanged;
+
+        Console.WriteLine("End OnInitializedAsync");
+    }
+
+    private async Task<bool> DisableTimerAsync(Timer timer)
+    {
+        if (timer is not null)
+        {
+            await timer.DisposeAsync();
+            timer = null;
+            Console.WriteLine("Disabled Timer");
+            return true;
+        }
+        return false;
+    }
+
+    private async void LocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        Console.WriteLine($"Start Index LocationChanged {TimerType}");
+        await ProcessTimers();
+    }
+
+    private async Task ProcessTimers()
+    {
+        var timerType = TimerType;
+        await DisableTimerAsync(_realtimeAggregatesTimer);
+        await DisableTimerAsync(_populatorTimer);
+
+        if ((timerType == "timer-aggregates" || timerType == "timer-all"))
+        {
+            _realtimeAggregatesTimer = new Timer(async (object stateInfo) =>
+            {
+                Console.WriteLine("Start RealtimeAggregatesTimer");
+                await FetchRealtimeAggregates();
+                await InvokeAsync(StateHasChanged);
+            }, new AutoResetEvent(false), 1000, 5000);
+        }
+
+        if ((timerType == "timer-populator" || timerType == "timer-all"))
+        {
+            _populatorTimer = new Timer(async (object stateInfo) =>
+            {
+                Console.WriteLine("Start PopulatorTimer");
+                await SendData();
+                await InvokeAsync(StateHasChanged);
+            }, new AutoResetEvent(false), 1000, 5000);
+        }
+    }
+
+    private async Task FetchRealtimeAggregates()
+    {
+        var response = await _appReadClient.GetRealtimeAggregatesAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine(response.Error);
+            ViewModel.ErrorMessage = "Problemi nel recupero dei dati aggregati";
+            return;
+        }
+
+        ViewModel.Plants = DashboardViewModelMapper.Map(response.Content);
+    }
+
+    private async Task AssignCounterToVariable(NotificationType notificationType, object data = null)
+    {
+        var response = await _appReadClient.GetCounterAsync(notificationType);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine(response.Error);
+            ViewModel.ErrorMessage = "Non riesco a recuperare i contatori per " + notificationType;
+            StateHasChanged();
+            return;
+        }
+
+        var counterDto = response.Content;
+
+        if (counterDto.ErrorNumber == 1)
+        {
+            ViewModel.ErrorMessage = "Problemi con Service Stack Free Quotas";
+            StateHasChanged();
+            return;
+        }
+
+        var value = $"{counterDto.Value}";
+
+        switch (counterDto.Source)
+        {
+            case NotificationType.DataInserted:
+                ViewModel.DataInsertedCounter = value;
+                break;
+            case NotificationType.DataRawProcessing:
+                ViewModel.DataRawProcessingCounter = value;
+                ViewModel.DataRawProcessingLastId = data?.ToString();
+                break;
+            case NotificationType.DataSearchProcessing:
+                ViewModel.DataSearchProcessingCounter = value;
+                break;
+            case NotificationType.DataTimeProcessing:
+                ViewModel.DataTimeProcessingCounter = value;
+                break;           
+            case NotificationType.DataRetriedOutbox:
+                ViewModel.DataRetriedOutboxCounter = value;
+                break;           
+            case NotificationType.DataRemovedOutbox:
+                ViewModel.DataRemovedOutboxCounter = value;
+                break;           
+        }
+
+        StateHasChanged();
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+
+        if (_realtimeAggregatesTimer is not null)
+        {
+            await _realtimeAggregatesTimer.DisposeAsync();
+        }
+
+        if (_populatorTimer is not null)
+        {
+            await _populatorTimer.DisposeAsync();
+        }
+
+        _navManager.LocationChanged -= LocationChanged;
+    }
+}

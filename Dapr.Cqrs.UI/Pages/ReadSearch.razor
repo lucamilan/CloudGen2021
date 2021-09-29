@@ -1,0 +1,138 @@
+﻿@page "/read-search"
+@inject IAppReadClient _appReadClient
+@inject IAppWriteClient _appWriteClient
+
+<Banner Message="@ViewModel.ErrorMessage" />
+
+<div class="container">
+
+     <h1>Welcome to Search Page</h1>
+        <p>
+            This is a view that show us how we can navigate trought the Blob Container like a file system.
+        </p>
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-2"></div>
+                <div class="col-sm-4"></div>
+                <div class="col-sm-3"></div>
+                <div class="col-sm-3"></div>
+            </div>
+
+            <div class="row">
+                <div class="col-sm-2">
+                    <div class="form-check form-check-inline">
+                        @foreach (var plantKey in SensorDataLookup.Plants.Keys.OrderBy(_ => _))
+                        {
+                            <input @onchange="PlantKeySelection" checked=@(plantKey.Equals(ViewModel.CurrentPlantKey,StringComparison.OrdinalIgnoreCase)) type="radio" id="@plantKey" class="form-check-input" value="@plantKey">
+                            <label class="form-check-label">@SensorDataLookup.Plants[plantKey]</label>
+                        }
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="form-check form-check-inline">
+                        @foreach (var locationKey in SensorDataLookup.Locations.Keys.OrderBy(_ => _))
+                        {
+                            <input @onchange="LocationKeySelection" checked=@(locationKey.Equals(ViewModel.CurrentLocationKey,StringComparison.OrdinalIgnoreCase)) type="radio" id="@locationKey" class="form-check-input" value="@locationKey">
+                            <label class="form-check-label">@SensorDataLookup.Locations[locationKey]</label>
+                        }
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <div class="form-check form-check-inline">
+                        @foreach (var tagKey in SensorDataLookup.Tags.Keys.OrderBy(_ => _))
+                        {
+                            <input @onchange="TagKeySelection" checked=@(tagKey.Equals(ViewModel.CurrentTagKey,StringComparison.OrdinalIgnoreCase)) type="radio" id="@tagKey" class="form-check-input" value="@tagKey">
+                            <label class="form-check-label">@SensorDataLookup.Tags[tagKey]</label>
+                        }
+                    </div>
+                </div>
+                <div class="col-sm-3">
+                    <input type="text" @onchange="(e)=>CurrentPrefixChanged(e)" value="@ViewModel.CurrentPrefix"/>
+                </div>
+            </div>
+
+            <p>  </p>
+
+            <div class="row">
+
+    @if (ViewModel.DirectoriesOrFiles.Any())
+    {        
+            @foreach (var item in ViewModel.GetReadyToDisplay())
+            {
+                <div class="card card-outline-info" style="padding: 10px;">
+                    <div class="card-block">
+                            <h5 class="card-title">
+                                <button @onclick="() => GetDirectoryDetailAsync(item)">@item.Label</button>
+                            </h5>
+                                @if(item.Files.Any() && ViewModel.CanShowDetails){
+                                    <ul class="list-group">
+                                    @foreach(var file in item.Files){
+                                       <li class="list-group-item"> <a href="/read-raw/@file"> @file </a> </li>
+                                    }
+                                    </ul>
+                                }
+                     </div>
+                </div>
+            }
+    }
+            </div>
+            
+            </div>
+
+</div>
+
+
+@code {
+    public ReadSearchPageViewModel ViewModel = new();
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine($"Start OnInitializedAsync");
+        await FetchDirectoryAsync();
+        Console.WriteLine("End OnInitializedAsync");
+    }
+
+    private async void CurrentPrefixChanged(ChangeEventArgs args){
+        string value = (string)args.Value;
+        ViewModel.CurrentPrefix = value;
+        await FetchDirectoryAsync();
+    }
+    private async Task FetchDirectoryAsync()
+    {
+        if(ViewModel.CurrentPlantKey is null) ViewModel.CurrentPlantKey = SensorDataLookup.Plants.Keys.First();;
+        if(ViewModel.CurrentLocationKey is null) ViewModel.CurrentLocationKey = SensorDataLookup.Locations.Keys.First();
+        if(ViewModel.CurrentTagKey is null) ViewModel.CurrentTagKey = SensorDataLookup.Tags.Keys.First();
+            
+        var response = await _appReadClient.GetDirectoriesOrFilesAsync(ViewModel.CurrentPlantKey, ViewModel.CurrentLocationKey, ViewModel.CurrentTagKey, ViewModel.CurrentPrefix);
+
+        if (response.IsSuccessStatusCode)
+        {
+            ViewModel.DirectoriesOrFiles = response.Content.ToList();
+        }
+        else
+        {
+            ViewModel.ErrorMessage = "Errore";
+        }
+
+        StateHasChanged();
+    }
+    private async Task GetDirectoryDetailAsync(BlobItem item)
+    {
+        ViewModel.CurrentPrefix = item.Name;
+        await FetchDirectoryAsync();
+    }
+    private async void PlantKeySelection(ChangeEventArgs args)
+    {
+        ViewModel.CurrentPlantKey = args.Value.ToString();
+        await FetchDirectoryAsync();
+    }
+    private async void LocationKeySelection(ChangeEventArgs args)
+    {
+        ViewModel.CurrentLocationKey = args.Value.ToString();
+        await FetchDirectoryAsync();
+    }
+    private async void TagKeySelection(ChangeEventArgs args)
+    {
+        ViewModel.CurrentTagKey = args.Value.ToString();
+        await FetchDirectoryAsync();
+    }
+}

@@ -1,0 +1,14 @@
+###
+GET http://localhost:7080/Counters/by-notification-type?notificationType=1 HTTP/1.1
+
+###
+POST http://localhost:1080/ HTTP/1.1
+content-type: application/json
+
+{
+    "plant":"VE",
+    "location":"UFF",
+    "tag":"TMP",
+    "value": 20.78,
+    "recordedOn":"2021-08-25T16:02:40.0324893+02:00"
+}

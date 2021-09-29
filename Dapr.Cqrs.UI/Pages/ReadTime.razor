@@ -1,0 +1,217 @@
+﻿@page "/read-time"
+@page "/read-raw/{Id:guid}"
+@page "/read-time/{PlantKey}/{NumberOfSeconds:int}"
+@implements IDisposable
+@inject NavigationManager _navManager
+@inject IAppReadClient _appReadClient
+@inject IAppWriteClient _appWriteClient
+
+<Banner Message="@ViewModel.ErrorMessage" />
+
+<div class="container">
+
+    @if (ViewModel.RawData is not null)
+    {
+        <h1>Welcome to Raw Page</h1>
+        <p>
+            Here we can view/query the raw (original) data stored on Azure Blob as json document.
+            Storing each event as single document {EventID}.json allow us to achieve an easy and cheap solution for backup
+            purpose or other.
+        </p>
+
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-sm-2 font-weight-bold py-2">
+                    Event Id:
+                </div>
+                <div class="col-sm-10 text-left align-middle">
+                    @Id.ToString()
+                </div>
+            </div>
+            <div class="row text-center">
+                <div class="col-sm-2 font-weight-bold py-2">
+                    Created on:
+                </div>
+                <div class="col-sm-10 text-left">
+                    @ViewModel.RawData.CreatedOn.ToLocalTime()
+                </div>
+            </div>
+            <div class="row text-center">
+                <div class="col-sm-2 font-weight-bold py-2">
+                    Event Type:
+                </div>
+                <div class="col-sm-10 text-left">
+                    @ViewModel.RawData.Type
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-sm-2 font-weight-bold py-2">
+                    Original JSON
+                </div>
+                <div class="col-sm-10">
+                    <textarea id="myJson" cols="50" rows="10">
+                        @ViewModel.RawData.Json
+                                    </textarea>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <h1>Welcome to Time Page</h1>
+        <p>
+            Here is how we can query the Azure table/view optimized for query time based.
+            The approach is based on Log tail pattern. Use this pattern when you need to access entities in
+            reverse date/time order or when you need to access the most recently added entities.
+        </p>
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-2">
+                    <button value="" title="Seed with random data" class="btn btn-secondary" @onclick="GenerateData">
+                        <i class="fas fa-check-double"></i> Create
+                    </button>
+                </div>
+
+                @foreach (var plantKey in SensorDataLookup.Plants.Keys.OrderBy(_ => _))
+                {
+                    <div class="col-sm-5">
+                        <div class="btn-group" role="group" aria-label="">
+                            <button type="button" class="btn btn-danger">@plantKey</button>
+                            <div class="btn-group" role="group">
+                                @foreach (var interval in new int[] { 30, 60, 90, 120, 180 })
+                                {
+                                    <a href="read-time/@plantKey/@interval" class="btn btn-secondary">@interval</a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <br>
+            <div class="row">
+                <table class="table table-striped">
+                    <thead class="thead-light">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Plant</th>
+                            <th scope="col">Location</th>
+                            <th scope="col">Tag</th>
+                            <th scope="col">Value</th>
+                            <th scope="col">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                        @if (!ViewModel.SensorsData.Any())
+                        {
+                            <tr>
+                                <th scope="row" colspan="6"> No data </th>
+                            </tr>
+                        }
+
+                        @foreach (var item in ViewModel.SensorsData)
+                        {
+                            <tr>
+                                <th scope="row"> <a href="/read-raw/@item.EventId"> @item.EventId </a> </th>
+                                <td> @item.PlantLabel </td>
+                                <td> @item.LocationLabel </td>
+                                <td> @item.TagLabel </td>
+                                <td> @item.Value </td>
+                                <td> @item.RecordedOn.ToLocalTime() </td>
+                            </tr>
+                        }
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+</div>
+
+
+@code {
+
+    public ReadTimePageViewModel ViewModel = new();
+
+    [Parameter]
+    public String PlantKey { get; set; }
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public int NumberOfSeconds { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine($"Start OnInitializedAsync {Id} {PlantKey} {NumberOfSeconds}");
+        _navManager.LocationChanged += LocationChanged;
+
+        await FetchRawDataAsync();
+        await FetchSensorsDataAsync();
+
+        Console.WriteLine("End OnInitializedAsync");
+    }
+
+    private async Task FetchSensorsDataAsync()
+    {
+        if (String.IsNullOrWhiteSpace(PlantKey) || NumberOfSeconds <= 0) return;
+
+        var response = await _appReadClient.GetLastRecordsAsync(NumberOfSeconds, PlantKey);
+
+        if (response.IsSuccessStatusCode)
+        {
+            ViewModel.SensorsData = response.Content.ToList();
+        }
+        else
+        {
+            ViewModel.ErrorMessage = "Errore nel caricamento dei dati.";
+        }
+    }
+    private async Task FetchRawDataAsync()
+    {
+        if (Id == Guid.Empty) return;
+
+        var response = await _appReadClient.GetRawDataAsync(Id);
+
+        if (response.IsSuccessStatusCode)
+        {
+            ViewModel.RawData = response.Content;
+        }
+        else
+        {
+            ViewModel.ErrorMessage = "Il documento con id: " + Id + " non esiste.";
+        }
+    }
+    private async Task GenerateData()
+    {
+        var data = SensorDataBuilder.BuildNonRandom().ToArray();
+
+        foreach (var item in data)
+        {
+            try
+            {
+                await _appWriteClient.PostAsync(item);
+            }
+            catch (ApiException)
+            {
+                ViewModel.ErrorMessage = "Ci sono problemi nell'invio dei dati";
+            }
+        }
+
+        StateHasChanged();
+    }
+    private async void LocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        Console.WriteLine($"Start Read LocationChanged {Id} {PlantKey} {NumberOfSeconds}");
+        ViewModel.RawData = null;
+        await FetchRawDataAsync();
+        await FetchSensorsDataAsync();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _navManager.LocationChanged -= LocationChanged;
+    }
+}

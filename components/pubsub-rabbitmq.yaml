@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: message-bus
+  namespace: default
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+    - name: host
+      value: "amqp://guest:guest@localhost:5672"
+    - name: consumerID
+      value: "dapr_cqrs"
+    - name: durable
+      value: "false"
+    - name: deletedWhenUnused
+      value: "false"
