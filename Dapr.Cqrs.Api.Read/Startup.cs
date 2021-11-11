@@ -36,7 +36,10 @@ namespace Dapr.Cqrs.Api.Read
             {
                 app.UseDeveloperExceptionPage();
                 app.UseSwagger();
-                app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dapr.Cqrs Write Read v1"); });
+                app.UseSwaggerUI(c => { 
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dapr.Cqrs Write Read v1"); 
+                    c.RoutePrefix = string.Empty;
+                });
             }
 
             app.UseRouting();
