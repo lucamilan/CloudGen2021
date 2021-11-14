@@ -1,6 +1,6 @@
-## "Flow Processing" DAPR in salsa CQRS
+# "Information Flow Processing" con DAPR in salsa CQRS
 
-### Create the SQL Server Image with the database
+## Create the SQL Server Image with the database
 
 ```powershell
 powershell ./Dapr.Cqrs.Infra/mssql/build.ps1
@@ -30,7 +30,6 @@ explorer "%USERPROFILE%\.dapr\"
 ```powershell
 dotnet tool install -g Microsoft.Tye --version "0.9.0-alpha.21380.1"
 ```
-
 
 ## Run Tye
 
