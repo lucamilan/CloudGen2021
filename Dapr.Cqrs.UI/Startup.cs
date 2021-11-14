@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Refit;
+using Dapr.Client;
 
 namespace Dapr.Cqrs.UI
 {
@@ -29,13 +30,13 @@ namespace Dapr.Cqrs.UI
             services.AddSingleton(sp =>
             {
                 var uris = sp.GetRequiredService<ServiceUrisRegistry>();
-                var httpClient = new HttpClient {BaseAddress = uris.GetReadApi()};
+                var httpClient = DaprClient.CreateInvokeHttpClient("api-read"); // new HttpClient {BaseAddress = uris.GetReadApi()};
                 return RestService.For<IAppReadClient>(httpClient);
             });
             services.AddSingleton(sp =>
             {
                 var uris = sp.GetRequiredService<ServiceUrisRegistry>();
-                var httpClient = new HttpClient {BaseAddress = uris.GetWriteApi()};
+                var httpClient = DaprClient.CreateInvokeHttpClient("api-write"); // new HttpClient {BaseAddress = uris.GetWriteApi()};
                 return RestService.For<IAppWriteClient>(httpClient);
             });
         }
