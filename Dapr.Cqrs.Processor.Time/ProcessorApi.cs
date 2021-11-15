@@ -37,7 +37,7 @@ namespace Dapr.Cqrs.Processor.Time
             catch (Exception ex) {
                 eventId = default;
                 context.Response.StatusCode = DaprNames.PubSubMessageToBeDropped;
-                Console.WriteLine ($"TIME issue in processing event {eventId} {ex}");
+                Console.WriteLine ($"TIME issue in processing event {eventId} {ex.Message}");
             }
 
             //  confirm tha message has been processed to Outbox service
@@ -56,11 +56,7 @@ namespace Dapr.Cqrs.Processor.Time
 
                 await Task.WhenAll(entities.Select(entity=>tableForRealtimeAggregates.UpsertEntityAsync (entity, TableUpdateMode.Replace)));
 
-                // foreach (var entity in entities) {
-                //     await tableForRealtimeAggregates>.UpsertEntityAsync (entity, TableUpdateMode.Replace);
-                // }
-
-                Console.WriteLine ("Aggregate time data");
+                Console.WriteLine ("Aggregate time data end");
             } catch (Exception exception) {
                 Console.WriteLine ($"********[OPS]******** Failure {exception.Message}");
             }
